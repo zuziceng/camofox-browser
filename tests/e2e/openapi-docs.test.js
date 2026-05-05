@@ -309,6 +309,7 @@ describe('OpenAPI/Docs Endpoints', () => {
       const openclawNavReq = spec.paths['/navigate'].post.requestBody;
       const openclawNavSchema = openclawNavReq.content['application/json'].schema;
       expect(openclawNavSchema.required).toContain('userId');
+      expect(openclawNavSchema.required).toContain('targetId');
     });
     
     test('request schemas document either/or field requirements', async () => {
@@ -316,16 +317,22 @@ describe('OpenAPI/Docs Endpoints', () => {
       const spec = await response.json();
       
       // POST /tabs/{tabId}/navigate requires either url or macro
+      const navigateSchema = spec.paths['/tabs/{tabId}/navigate'].post.requestBody.content['application/json'].schema;
       const navigateDesc = spec.paths['/tabs/{tabId}/navigate'].post.description;
       expect(navigateDesc).toContain('Either url or macro is required');
+      expect(navigateSchema.anyOf).toEqual([{ required: ['url'] }, { required: ['macro'] }]);
       
       // POST /tabs/{tabId}/click requires either ref or selector
+      const clickSchema = spec.paths['/tabs/{tabId}/click'].post.requestBody.content['application/json'].schema;
       const clickDesc = spec.paths['/tabs/{tabId}/click'].post.description;
       expect(clickDesc).toContain('Either ref or selector is required');
+      expect(clickSchema.anyOf).toEqual([{ required: ['ref'] }, { required: ['selector'] }]);
       
       // POST /navigate (OpenClaw) requires either url or macro
+      const openclawNavSchema = spec.paths['/navigate'].post.requestBody.content['application/json'].schema;
       const openclawNavDesc = spec.paths['/navigate'].post.description;
       expect(openclawNavDesc).toContain('Either url or macro is required');
+      expect(openclawNavSchema.anyOf).toEqual([{ required: ['url'] }, { required: ['macro'] }]);
     });
     
     test('/act path is absent from spec', async () => {
