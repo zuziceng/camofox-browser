@@ -34,7 +34,7 @@ const PKG_VERSION = (() => {
 	throw new Error('Unable to resolve server version from package.json');
 })();
 
-export function buildOpenapiSpec(serverUrl = 'http://localhost:9377'): OpenAPIV3_1.Document {
+export function buildOpenapiSpec(serverUrl = '.'): OpenAPIV3_1.Document {
 	return {
 		openapi: '3.1.0',
 		info: {
@@ -299,8 +299,7 @@ export function buildOpenapiSpec(serverUrl = 'http://localhost:9377'): OpenAPIV3
 										totalChars: { type: 'number' },
 										hasMore: { type: 'boolean' },
 										nextOffset: {
-											type: 'number',
-											nullable: true,
+											anyOf: [{ type: 'number' }, { enum: [null] }],
 										},
 									},
 									required: ['url', 'snapshot', 'refsCount', 'offset', 'truncated', 'totalChars', 'hasMore', 'nextOffset'],
@@ -660,8 +659,7 @@ export function buildOpenapiSpec(serverUrl = 'http://localhost:9377'): OpenAPIV3
 										totalChars: { type: 'number' },
 										hasMore: { type: 'boolean' },
 										nextOffset: {
-											type: 'number',
-											nullable: true,
+											anyOf: [{ type: 'number' }, { enum: [null] }],
 										},
 									},
 									required: ['ok', 'format', 'targetId', 'url', 'snapshot', 'refsCount', 'offset', 'truncated', 'totalChars', 'hasMore', 'nextOffset'],

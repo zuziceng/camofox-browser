@@ -62,14 +62,14 @@ describe('OpenAPI/Docs Endpoints', () => {
       expect(spec.components.securitySchemes.adminKey.name).toBe('X-Admin-Key');
     });
 
-    test('spec advertises the current request origin', async () => {
+    test('spec uses a relative server URL for the current deployment root', async () => {
       const response = await fetch(`${serverUrl}/openapi.json`);
       const spec = await response.json();
 
       expect(spec.servers).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            url: serverUrl,
+            url: '.',
           }),
         ]),
       );
@@ -260,6 +260,8 @@ describe('OpenAPI/Docs Endpoints', () => {
       expect(Object.keys(schema.properties)).toHaveLength(8);
       expect(schema.properties.ok).toBeUndefined();
       expect(schema.properties.title).toBeUndefined();
+      expect(schema.properties.nextOffset.anyOf).toEqual([{ type: 'number' }, { enum: [null] }]);
+      expect(schema.properties.nextOffset.nullable).toBeUndefined();
     });
     
     test('response shapes match actual handlers for OpenClaw /snapshot', async () => {
@@ -289,6 +291,8 @@ describe('OpenAPI/Docs Endpoints', () => {
       // Verify no invented title field
       expect(Object.keys(schema.properties)).toHaveLength(11);
       expect(schema.properties.title).toBeUndefined();
+      expect(schema.properties.nextOffset.anyOf).toEqual([{ type: 'number' }, { enum: [null] }]);
+      expect(schema.properties.nextOffset.nullable).toBeUndefined();
     });
     
     test('spec includes components and schemas', async () => {
@@ -371,14 +375,14 @@ describe('OpenAPI/Docs Endpoints', () => {
       expect(html.toLowerCase()).toContain('swagger');
     });
 
-    test('Swagger UI bootstraps from /openapi.json', async () => {
+    test('Swagger UI bootstraps from a relative OpenAPI URL', async () => {
       const response = await fetch(`${serverUrl}/api/docs/swagger-ui-init.js`);
 
       expect(response.status).toBe(200);
       expect(response.headers.get('content-type')).toContain('javascript');
 
       const initScript = await response.text();
-      expect(initScript).toContain('/openapi.json');
+      expect(initScript).toContain('../openapi.json');
     });
   });
 });
