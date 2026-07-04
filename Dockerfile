@@ -32,9 +32,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends     xvfb     x1
 RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC \
 	&& rm -rf /opt/noVNC/.git
 
-# Install yt-dlp for YouTube transcript extraction
-RUN curl -L "https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}/yt-dlp" -o /usr/local/bin/yt-dlp \
-	&& chmod +x /usr/local/bin/yt-dlp
+# Install yt-dlp for YouTube transcript extraction (architecture-aware)
+ARG TARGETARCH
+RUN case "$TARGETARCH" in \
+        arm64)  YT_BIN="yt-dlp_linux_aarch64" ;; \
+        amd64)  YT_BIN="yt-dlp_linux" ;; \
+        *)      YT_BIN="yt-dlp" ;; \
+    esac && \
+    curl -L "https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}/${YT_BIN}" -o /usr/local/bin/yt-dlp && \
+    chmod +x /usr/local/bin/yt-dlp
 
 # Install production deps only (as non-root)
 COPY package*.json ./

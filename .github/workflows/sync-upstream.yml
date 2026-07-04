@@ -1,0 +1,67 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check upstream for changes
+        id: check
+        run: |
+          git remote add upstream https://github.com/redf0x1/camofox-browser.git
+          git fetch upstream --quiet
+          UPSTREAM_SHA=$(git rev-parse upstream/main)
+          LOCAL_SHA=$(git rev-parse HEAD)
+          echo "upstream_sha=$UPSTREAM_SHA" >> $GITHUB_OUTPUT
+          echo "local_sha=$LOCAL_SHA" >> $GITHUB_OUTPUT
+          if [ "$UPSTREAM_SHA" != "$LOCAL_SHA" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create merge PR
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          DATE_TAG=$(date +%Y%m%d)
+          BRANCH="sync/upstream-$DATE_TAG"
+          git checkout -b "$BRANCH" main
+
+          # Try automatic merge preserving our patches on conflict
+          if git merge upstream/main --no-edit -X ours 2>/dev/null; then
+            git push origin "$BRANCH"
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore: sync upstream changes ($DATE_TAG)" \
+              --body "Automated merge from [redf0x1/camofox-browser](https://github.com/redf0x1/camofox-browser).\n\nUpstream: ${{ steps.check.outputs.upstream_sha }}\n\n> Uses \`-X ours\` strategy — our Dockerfile multi-arch patches are preserved automatically." \
+              --label "upstream-sync" || echo "PR may already exist for this branch"
+          else
+            git merge --abort
+            # Push upstream raw for manual conflict resolution
+            git checkout -b "sync/conflict-$DATE_TAG" upstream/main
+            git push origin "sync/conflict-$DATE_TAG" --force
+            gh pr create \
+              --base main \
+              --head "sync/conflict-$DATE_TAG" \
+              --title "⚠️ manual merge needed: upstream sync conflict ($DATE_TAG)" \
+              --body "Automatic merge failed due to conflicts. Please resolve manually.\n\nBranch \`sync/conflict-$DATE_TAG\` contains raw upstream changes for comparison.\n\nReference: ${{ steps.check.outputs.upstream_sha }}" \
+              --label "upstream-sync" || echo "PR may already exist"
+          fi
