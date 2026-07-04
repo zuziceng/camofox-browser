@@ -46,15 +46,15 @@ RUN case "$TARGETARCH" in \
 COPY package*.json ./
 RUN chown -R node:node /app
 USER node
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 
 # Copy built output
 COPY --from=builder --chown=node:node /app/dist/ ./dist/
 COPY --from=builder --chown=node:node /app/plugin.ts ./
 COPY --from=builder --chown=node:node /app/openclaw.plugin.json ./
 
-# Pre-download Camoufox browser binary (~300MB); GeoLite fetch can fail transiently
-RUN npx --yes camoufox-js fetch || true
+# Pre-download Camoufox browser binary (~300MB)
+RUN npx --yes camoufox-js fetch
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3     CMD curl -f http://localhost:9377/health || exit 1
