@@ -44,24 +44,24 @@ jobs:
           BRANCH="sync/upstream-$DATE_TAG"
           git checkout -b "$BRANCH" main
 
-          # Try automatic merge preserving our patches on conflict
-          if git merge upstream/main --no-edit -X ours 2>/dev/null; then
+          # Normal merge — files we didn't touch auto-use upstream's version;
+          # if both sides change the same file, conflict markers are left for review
+          if git merge upstream/main --no-edit 2>/dev/null; then
             git push origin "$BRANCH"
             gh pr create \
               --base main \
               --head "$BRANCH" \
               --title "chore: sync upstream changes ($DATE_TAG)" \
-              --body "Automated merge from [redf0x1/camofox-browser](https://github.com/redf0x1/camofox-browser).\n\nUpstream: ${{ steps.check.outputs.upstream_sha }}\n\n> Uses \`-X ours\` strategy — our Dockerfile multi-arch patches are preserved automatically." \
+              --body "Automated merge from [redf0x1/camofox-browser](https://github.com/redf0x1/camofox-browser).\n\nUpstream: ${{ steps.check.outputs.upstream_sha }}" \
               --label "upstream-sync" || echo "PR may already exist for this branch"
           else
-            git merge --abort
-            # Push upstream raw for manual conflict resolution
-            git checkout -b "sync/conflict-$DATE_TAG" upstream/main
-            git push origin "sync/conflict-$DATE_TAG" --force
+            # Merge failed (conflicts). Commit conflict markers and push for manual resolution
+            git commit --no-edit -m "chore: merge upstream changes (with conflicts)" || true
+            git push origin "$BRANCH" --force
             gh pr create \
               --base main \
-              --head "sync/conflict-$DATE_TAG" \
-              --title "⚠️ manual merge needed: upstream sync conflict ($DATE_TAG)" \
-              --body "Automatic merge failed due to conflicts. Please resolve manually.\n\nBranch \`sync/conflict-$DATE_TAG\` contains raw upstream changes for comparison.\n\nReference: ${{ steps.check.outputs.upstream_sha }}" \
+              --head "$BRANCH" \
+              --title "⚠️ conflict: upstream sync needs manual resolution ($DATE_TAG)" \
+              --body "Automatic merge from [redf0x1/camofox-browser](https://github.com/redf0x1/camofox-browser) detected conflicts.\n\nFiles with conflicts need manual resolution on the \`$BRANCH\` branch.\n\nReference: ${{ steps.check.outputs.upstream_sha }}" \
               --label "upstream-sync" || echo "PR may already exist"
           fi
