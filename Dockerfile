@@ -46,7 +46,7 @@ RUN case "$TARGETARCH" in \
 COPY package*.json ./
 RUN chown -R node:node /app
 USER node
-RUN npm ci --omit=dev --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts && npm rebuild 2>/dev/null || true
 
 # Copy built output
 COPY --from=builder --chown=node:node /app/dist/ ./dist/

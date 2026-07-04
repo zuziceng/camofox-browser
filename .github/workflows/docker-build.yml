@@ -12,8 +12,16 @@ permissions:
   contents: read
   packages: write
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
-  docker:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,7 +36,7 @@ jobs:
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -36,7 +44,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            suffix=-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -46,13 +56,59 @@ jobs:
             type=schedule,pattern=nightly
             type=sha,prefix=,suffix=,format=short
 
-      - name: Build and push
+      - name: Build and push (${{ matrix.platform }})
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=docker-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.platform }}
           provenance: false
+
+  manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=schedule,pattern=nightly
+            type=sha,prefix=,suffix=,format=short
+
+      - name: Create multi-arch manifest
+        run: |
+          IMG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          tags='${{ steps.meta.outputs.tags }}'
+          if [ -z "$tags" ]; then
+            echo "No tags to create manifest for"
+            exit 0
+          fi
+          IFS=',' read -ra TAG_LIST <<< "$tags"
+          for full_tag in "${TAG_LIST[@]}"; do
+            tag="${full_tag#${IMG}:}"
+            echo "  → ${IMG}:${tag}"
+            docker buildx imagetools create \
+              -t "${IMG}:${tag}" \
+              "${IMG}:${tag}-amd64" \
+              "${IMG}:${tag}-arm64"
+          done
